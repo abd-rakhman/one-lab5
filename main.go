@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
+	"github.com/jmoiron/sqlx"
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo"
 	_ "github.com/lib/pq"
 )
@@ -15,31 +18,26 @@ type User struct {
 	Password string
 }
 
-const (
-	Db_USER     = "admin"
-	Db_PASSWORD = "alypsok"
-	Db_NAME     = "onelab5"
-)
-
 func main() {
 	//connect to db
-	DbInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", "localhost", 5432, Db_USER, Db_PASSWORD, Db_NAME)
+	var db *sqlx.DB
+	var err error
+	godotenv.Load(".env")
 
-	db, connectError := sql.Open("postgres", DbInfo)
+	db, err = sqlx.Connect("postgres", fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", "localhost", os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_NAME")))
 
-	if connectError != nil {
-		log.Fatal(connectError)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	pingError := db.Ping()
+	err = db.Ping()
 
-	if pingError != nil {
-		log.Fatal(pingError)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	defer db.Close()
 
-	// accounts := make(map[string]User)
 	// simple user-register and login crud operations
 	e := echo.New()
 
@@ -50,7 +48,7 @@ func main() {
 
 		var getUser User
 
-		err := db.QueryRow("SELECT * FROM users WHERE email=$1 AND password=$2;", email, password).Scan(&getUser.Email, &getUser.Password)
+		err := db.Get(&getUser, "SELECT * FROM users WHERE email=$1 AND password=$2;", email, password)
 
 		if err == sql.ErrNoRows {
 			return c.String(http.StatusBadRequest, "User does not exist")
